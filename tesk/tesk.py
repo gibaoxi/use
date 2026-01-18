@@ -131,7 +131,7 @@ class Socks5ProxyCollectorWithNotify:
         try:
             print("📋📋📋📋📋📋📋📋 正在从环境变量加载Telegram配置...")
             
-            self.telegram_bot_token = '7687806689:AAGa_UX9k1uW6fnGo3lI_HHoIEw1HKDkiXc'        
+            self.telegram_bot_token = '8369836249:AAHWAHiwEZM-pAbmLuNI7tJ3WeoEwusMQn4'        
             self.telegram_chat_id = '6776513150'
             
             if not self.telegram_bot_token or not self.telegram_chat_id:
