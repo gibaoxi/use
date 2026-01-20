@@ -13,7 +13,7 @@ class Socks5ProxyCollectorWithNotify:
     def __init__(self):
         self.socks5_url = "https://mtpro.xyz/socks5"
         self.save_dir = "./tesk"
-        self.filename = "telsocks.json"
+        self.filename = "ts.json"
         self.target_countries = ["SG", "HK", "KR", "JP"]  # 只关注这四个国家
         
         # 测试配置
