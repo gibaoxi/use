@@ -1,91 +1,62 @@
-# coding=utf-8
 import os
+import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from notify import telegram
 import base64
 
-now = datetime.today()
-now = now.strftime('%Y-%m-%d')
-qbt, tr, trx, jpx, bx, trs = [], [], [], [], [], []
-url, url1, url2, url4, url3, url5 = 'https://qbtr.me/tongren/', 'https://tongrenquan.org/tongren/', 'https://trxs.cc/tongren/', 'https://jpxs123.cc/', 'https://bixiange.top/','https://www.tongrenshe.cc/'
+# 从配置文件加载动态内容
+def load_config():
+    config_file = 'config.json'
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"无法找到配置文件: {config_file}")
+    with open(config_file, 'r', encoding='utf-8') as file:
+        return json.load(file)
 
-def qbtr(urls_to_lists):  
-    now = datetime.now().date()  
-    for url, lb in urls_to_lists.items():  
-        res = requests.get(url)  
-        res.encoding = 'gb2312'  
-        html = res.text  
-        soup = BeautifulSoup(html, 'html.parser')  
-        qbtr3 = soup.find_all('div', class_='infos')  
-        for re in qbtr3:  
-            r = re.find('label', class_='date')  
-            if r is not None:  
-                date = r.text  
-                if date == str(now):  
-                    p = re.find('h3')  
-                    if p is not None:  
-                        lb.append(p.text)
+config = load_config()
 
-def read_previous_content():
-    """读取之前保存的内容"""
+now = datetime.today().strftime('%Y-%m-%d')
+novel_data = {key: [] for key in config['urls']}  # 动态创建存储字典
+
+def fetch_content(url, target_list):
+    """抓取 URL 内容并解析数据"""
     try:
-        if os.path.exists('novel.txt'):
-            with open('novel.txt', 'r', encoding='utf-8') as file:
-                return file.read().strip()
-        return ""
+        res = requests.get(url, timeout=10)
+        res.encoding = 'gb2312'  # 可用 res.apparent_encoding 代替
+        html = res.text
+        soup = BeautifulSoup(html, 'html.parser')
+        divs = soup.find_all('div', class_=config['html_parsing']['infos_div_class'])
+        for div in divs:
+            date_label = div.find('label', class_=config['html_parsing']['label_date_class'])
+            if date_label and date_label.text == now:  # 日期匹配
+                title = div.find('h3')
+                if title:
+                    target_list.append(title.text.strip())
     except Exception as e:
-        print(f"读取旧内容失败: {e}")
-        return ""
+        print(f"抓取 {url} 时发生错误: {e}")
 
-def save_current_content(content):
-    """保存当前内容"""
-    try:
-        with open('novel.txt', 'w', encoding='utf-8') as file:
-            file.write(content)
-        print("内容已保存到 novel.txt")
-    except Exception as e:
-        print(f"保存内容失败: {e}")
-
-def content_changed(old_content, new_content):
-    """比较内容是否发生变化"""
-    if not old_content:
-        return True  # 如果没有旧内容，视为有变化
-    
-    # 简单的字符串比较
-    return old_content.strip() != new_content.strip()
-
-if __name__ == '__main__':
+def main():
     # 读取之前的内容
     previous_content = read_previous_content()
     
-    urls_to_lists = {  
-        url: qbt,  
-        url1: tr,  
-        url2: trx, 
-        url4: jpx,
-        url3: bx,
-        url5: trs
-    }  
-    
-    qbtr(urls_to_lists)
-    
-    TITLE = "同人小说"
-    current_content = f'全本同人m{qbt}\n同人圈{tr}\n同人小说{trx}\n精品小说{jpx}\n笔仙阁m{bx}\n同人社{trs}'
-    
+    # 动态读取 URL 并抓取内容
+    for name, url in config['urls'].items():
+        fetch_content(url, novel_data[name])
+
+    current_content = '\n'.join([f"{name}: {data}" for name, data in novel_data.items()])
+
+    # 打印内容信息
     print(f"旧内容长度: {len(previous_content)}")
     print(f"新内容长度: {len(current_content)}")
     
-    # 比较内容是否发生变化
+    # 比较内容并发送通知
     if content_changed(previous_content, current_content):
         print("内容发生变化，发送通知")
-        
-        # 发送通知
-        telegram_result = telegram(current_content)
-        print(f"Telegram发送结果: {telegram_result}")
-        
-        # 保存新内容
+        telegram_result = telegram(current_content)  # Telegram 通知
+        print(f"Telegram 发送结果: {telegram_result}")
         save_current_content(current_content)
     else:
         print("内容无变化，不发送通知")
+
+main()
