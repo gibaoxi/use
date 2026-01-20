@@ -307,9 +307,9 @@ class Socks5ProxyCollectorWithNotify:
                 ping = proxy["ping"]
                 
                 if telegram_link:
-                    message_parts.append(f'  <a href="{telegram_link}">{proxy["ip_port"]}</a> {ping}ms\n')
+                    message_parts.append(f'<a href="{telegram_link}">{proxy["ip_port"]}</a> {ping}ms\n')
                 else:
-                    message_parts.append(f'  {proxy["ip_port"]} {ping}ms\n')
+                    message_parts.append(f'{proxy["ip_port"]} {ping}ms\n')
         
         return "".join(message_parts)
 
