@@ -19,7 +19,7 @@ class Socks5ProxyCollectorWithNotify:
         self.all_current_proxies = []
         
         # 存储从文件读取的上一次数据
-        self.previous_data = {"new": {}, "old": {}}
+        self.previous_data = None
         
         self.telegram_bot_token = None
         self.telegram_chat_id = None
@@ -28,6 +28,38 @@ class Socks5ProxyCollectorWithNotify:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        
+        # 检查文件是否存在，不存在则创建
+        self.init_data_file()
+    
+    def init_data_file(self):
+        """初始化数据文件，如果不存在则创建"""
+        filepath = os.path.join(self.save_dir, self.filename)
+        if not os.path.exists(filepath):
+            print("📄 首次运行，创建数据文件...")
+            os.makedirs(self.save_dir, exist_ok=True)
+            initial_data = {"new": {}, "old": {}}
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(initial_data, f, indent=2, ensure_ascii=False)
+            self.previous_data = initial_data
+            print("✅ 数据文件创建完成")
+        else:
+            # 加载现有数据
+            self.load_previous_data()
+    
+    def load_previous_data(self):
+        """加载上一次保存的数据"""
+        filepath = os.path.join(self.save_dir, self.filename)
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    self.previous_data = json.load(f)
+                print(f"📂 已加载上一次数据: new={len(self.previous_data.get('new', {}))}个, old={len(self.previous_data.get('old', {}))}个")
+                return True
+            except Exception as e:
+                print(f"❌ 加载上一次数据失败: {e}")
+                self.previous_data = {"new": {}, "old": {}}
+        return False
     
     def test_tcp_connection(self, ip: str, port: str, timeout: int = 5) -> bool:
         """测试TCP连接"""
@@ -63,28 +95,20 @@ class Socks5ProxyCollectorWithNotify:
                 self.test_url, 
                 proxies=proxies, 
                 timeout=timeout,
-                verify=False  # 禁用 SSL 验证
+                verify=False
             )
             end_time = datetime.now()
             
             response_time = (end_time - start_time).total_seconds()
-            print(f"✅ 代理测试成功! 状态码: {response.status_code}")
-            print(f"⏱️ 响应时间: {response_time:.2f}秒")
-            print("-" * 50)
-            
+            print(f"✅ 代理测试成功! 响应时间: {response_time:.2f}秒")
             return True
             
-        except requests.exceptions.RequestException as e:
-            print(f"❌ 代理测试失败: {e}")
-            print("-" * 50)
-            return False
         except Exception as e:
-            print(f"❌ 代理测试异常: {e}")
-            print("-" * 50)
+            print(f"❌ 代理测试失败: {e}")
             return False
     
     def test_proxy_comprehensive(self, proxy_info: dict) -> bool:
-        """综合测试代理（TCP + SOCKS5），TCP失败直接跳过SOCKS5测试"""
+        """综合测试代理（TCP + SOCKS5）"""
         ip = proxy_info.get("ip", "")
         port = proxy_info.get("port", "")
         
@@ -94,12 +118,10 @@ class Socks5ProxyCollectorWithNotify:
         # 先测试TCP连接
         tcp_success = self.test_tcp_connection(ip, port)
         if not tcp_success:
-            print(f"🚫 TCP连接失败，跳过SOCKS5代理测试: {ip}:{port}")
             return False
         
         # TCP连接成功，继续测试SOCKS5代理功能
-        proxy_success = self.test_socks5_proxy(ip, port)
-        return proxy_success
+        return self.test_socks5_proxy(ip, port)
     
     def filter_tested_proxies(self, proxies_by_country: dict) -> dict:
         """过滤并测试代理，只返回测试通过的代理"""
@@ -108,48 +130,39 @@ class Socks5ProxyCollectorWithNotify:
         for country, proxies in proxies_by_country.items():
             tested_proxies[country] = []
             
-            print(f"🧪🧪🧪 开始测试 {country} 的代理 ({len(proxies)}个)")
+            print(f"🧪 开始测试 {country} 的代理 ({len(proxies)}个)")
             
             for proxy in proxies:
-                print(f"\n🎯 测试代理: {proxy['ip_port']}")
+                print(f"🎯 测试代理: {proxy['ip_port']}")
                 
-                # 综合测试代理
                 if self.test_proxy_comprehensive(proxy):
-                    print(f"✅✅✅ 代理测试通过: {proxy['ip_port']}")
+                    print(f"✅ 代理测试通过: {proxy['ip_port']}")
                     tested_proxies[country].append(proxy)
                 else:
-                    print(f"❌❌❌ 代理测试失败: {proxy['ip_port']}")
+                    print(f"❌ 代理测试失败: {proxy['ip_port']}")
             
             print(f"📊 {country} 测试结果: {len(tested_proxies[country])}/{len(proxies)} 个通过")
         
-        # 移除空的国家条目
-        tested_proxies = {k: v for k, v in tested_proxies.items() if v}
-        return tested_proxies
-
+        return {k: v for k, v in tested_proxies.items() if v}
+    
     def load_telegram_config(self):
         """从环境变量加载Telegram配置"""
         try:
-            print("📋📋📋📋📋📋📋📋 正在从环境变量加载Telegram配置...")
-            
-            self.telegram_bot_token = '8369836249:AAHWAHiwEZM-pAbmLuNI7tJ3WeoEwusMQn4'        
+            self.telegram_bot_token = '7687806689:AAGa_UX9k1uW6fnGo3lI_HHoIEw1HKDkiXc'        
             self.telegram_chat_id = '6776513150'
             
             if not self.telegram_bot_token or not self.telegram_chat_id:
-                print("❌❌❌❌❌❌❌❌ 环境变量TOKEN或ID未设置")
                 return False
             
-            print(f"✅ Bot Token: {self.telegram_bot_token[:10]}...")
-            print(f"✅ Chat ID: {self.telegram_chat_id}")
             return True
             
         except Exception as e:
-            print(f"❌❌❌❌❌❌❌❌ 加载配置失败: {e}")
+            print(f"❌ 加载配置失败: {e}")
             return False
     
     def send_telegram_message(self, message: str):
         """发送Telegram消息"""
         if not self.telegram_bot_token or not self.telegram_chat_id:
-            print("❌❌❌❌❌❌❌❌ Telegram配置缺失")
             return False
         
         try:
@@ -161,56 +174,22 @@ class Socks5ProxyCollectorWithNotify:
                 'disable_web_page_preview': True
             }
             
-            print("📤📤📤📤📤📤📤📤 发送Telegram消息...")
             response = requests.post(url, data=data, timeout=30)
-            
-            if response.status_code == 200:
-                print("✅ Telegram消息发送成功")
-                return True
-            else:
-                print(f"❌❌❌❌❌❌❌❌ 发送失败: {response.status_code}")
-                return False
+            return response.status_code == 200
                 
         except Exception as e:
-            print(f"❌❌❌❌❌❌❌❌ 发送消息失败: {e}")
+            print(f"❌ 发送消息失败: {e}")
             return False
-    
-    def load_previous_data(self):
-        """加载上一次保存的数据"""
-        filepath = os.path.join(self.save_dir, self.filename)
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    self.previous_data = json.load(f)
-                
-                print(f"✅ 加载上一次数据:")
-                print(f"  - new键: {len(self.previous_data.get('new', {}))} 个国家")
-                print(f"  - old键: {len(self.previous_data.get('old', {}))} 个国家")
-                
-                return True
-            except Exception as e:
-                print(f"❌❌❌❌❌❌❌❌ 加载上一次数据失败: {e}")
-                self.previous_data = {"new": {}, "old": {}}
-        else:
-            print("ℹℹℹℹℹℹℹℹ️ 首次运行，无历史数据")
-            self.previous_data = {"new": {}, "old": {}}
-        return False
     
     def fetch_proxies(self):
         """获取代理数据"""
         try:
             api_url = "https://mtpro.xyz/api?type=socks"
-            print(f"🌐🌐🌐🌐🌐🌐🌐🌐 获取代理数据: {api_url}")
-            
             response = self.session.get(api_url, timeout=15)
             response.raise_for_status()
-            
-            data = response.json()
-            print(f"✅ 获取到 {len(data)} 个代理")
-            return data
-            
+            return response.json()
         except Exception as e:
-            print(f"❌❌❌❌❌❌❌❌ 获取代理失败: {e}")
+            print(f"❌ 获取代理失败: {e}")
             return []
     
     def process_proxies(self, proxies):
@@ -231,38 +210,24 @@ class Socks5ProxyCollectorWithNotify:
                     "port": port,
                     "country": country
                 }
-                
-                # 添加到所有代理列表
                 self.all_current_proxies.append(proxy_info)
         
         # 按ping值排序
         self.all_current_proxies.sort(key=lambda x: x["ping"])
     
-    def find_new_target_proxies(self):
+    def find_new_target_proxies(self, target_country_proxies):
         """找出新增的SG/HK/KR/JP代理（与上一次的new数据对比）"""
         new_proxies_by_country = {}
         
-        # 获取当前的目标国家代理
-        current_target_proxies = {}
-        for proxy in self.all_current_proxies:
-            country = proxy["country"]
-            if country in self.target_countries:
-                if country not in current_target_proxies:
-                    current_target_proxies[country] = []
-                current_target_proxies[country].append(proxy)
+        # 如果上一次的new数据为空，返回空字典
+        if not self.previous_data or not self.previous_data.get("new"):
+            print("ℹ️ 上一次new数据为空")
+            return new_proxies_by_country
         
-        # 如果上一次的new数据为空，保存所有目标国家代理
         previous_new = self.previous_data.get("new", {})
-        if not previous_new:
-            return current_target_proxies
         
         # 对比找出新增代理
-        for country in self.target_countries:
-            if country not in current_target_proxies:
-                continue
-                
-            current_country_proxies = current_target_proxies[country]
-            
+        for country, current_proxies in target_country_proxies.items():
             # 从上一次new数据中提取该国家的ip_port列表
             previous_ip_ports = []
             if country in previous_new:
@@ -274,7 +239,7 @@ class Socks5ProxyCollectorWithNotify:
             
             # 找出新增代理（当前有而上一次没有的）
             new_proxies = []
-            for proxy in current_country_proxies:
+            for proxy in current_proxies:
                 if proxy["ip_port"] not in previous_ip_ports:
                     new_proxies.append(proxy)
             
@@ -283,25 +248,21 @@ class Socks5ProxyCollectorWithNotify:
         
         return new_proxies_by_country
     
-    def find_common_proxies(self):
+    def find_common_proxies(self, all_current_proxies_by_country):
         """找出新旧数据中都有的代理（与上一次的old数据对比），按国家分组"""
-        # 将当前所有代理按国家分组
-        current_proxies_by_country = {}
-        for proxy in self.all_current_proxies:
-            country = proxy["country"]
-            if country not in current_proxies_by_country:
-                current_proxies_by_country[country] = []
-            current_proxies_by_country[country].append(proxy)
+        # 如果上一次的old数据为空，返回空字典
+        if not self.previous_data or not self.previous_data.get("old"):
+            print("ℹ️ 上一次old数据为空")
+            return {}
         
-        # 如果上一次的old数据为空，返回当前所有代理（按国家分组）
         previous_old = self.previous_data.get("old", {})
         if not previous_old:
-            return current_proxies_by_country
+            return {}
         
         # 找出共同代理（当前和上一次都有的）
         common_proxies_by_country = {}
         
-        for country, current_proxies in current_proxies_by_country.items():
+        for country, current_proxies in all_current_proxies_by_country.items():
             # 从上一次old数据中提取该国家的ip_port列表
             previous_ip_ports = []
             if country in previous_old:
@@ -319,10 +280,6 @@ class Socks5ProxyCollectorWithNotify:
             
             if common_proxies:
                 common_proxies_by_country[country] = common_proxies
-        
-        # 如果没有共同代理，返回当前所有代理（按国家分组）
-        if not common_proxies_by_country:
-            return current_proxies_by_country
         
         return common_proxies_by_country
     
@@ -372,7 +329,6 @@ class Socks5ProxyCollectorWithNotify:
                     telegram_link = self.create_telegram_proxy_link(proxy["ip"], proxy["port"])
                     ping = proxy["ping"]
                     
-                    
                     if telegram_link:
                         message += f'  {i}. <a href="{telegram_link}">{proxy["ip_port"]}</a>{ping}ms\n'
                     else:
@@ -394,7 +350,6 @@ class Socks5ProxyCollectorWithNotify:
                     telegram_link = self.create_telegram_proxy_link(proxy["ip"], proxy["port"])
                     ping = proxy["ping"]
                    
-                    
                     if telegram_link:
                         message += f'  {i}. <a href="{telegram_link}">{proxy["ip_port"]}</a> {ping}ms\n'
                     else:
@@ -404,38 +359,47 @@ class Socks5ProxyCollectorWithNotify:
         
         return message.strip()
     
-    def save_to_file(self, new_proxies, common_proxies):
+    def save_to_file(self, new_proxies_by_country, common_proxies_by_country, all_proxies_by_country):
         """保存代理数据到文件"""
         filepath = os.path.join(self.save_dir, self.filename)
         
         try:
             os.makedirs(self.save_dir, exist_ok=True)
             
-            # 确保new数据包含所有目标国家键，即使值为空列表
-            for country in self.target_countries:
-                if country not in new_proxies:
-                    new_proxies[country] = []
+            # 确定要保存的new数据
+            if new_proxies_by_country:
+                # 如果有新增代理，则更新new
+                new_data_to_save = new_proxies_by_country
+            else:
+                # 如果没有新增代理，则保留上一次的new（如果上次有的话）
+                if self.previous_data and self.previous_data.get("new"):
+                    new_data_to_save = self.previous_data.get("new", {})
+                else:
+                    new_data_to_save = {}
+            
+            # 确定要保存的old数据
+            if common_proxies_by_country:
+                # 如果有稳定代理，则保存稳定代理
+                old_data_to_save = common_proxies_by_country
+            else:
+                # 如果没有稳定代理，则用当前全部代理
+                old_data_to_save = all_proxies_by_country
             
             # 构建保存数据
             save_data = {
-                "new": new_proxies,      # 新增的目标国家代理
-                "old": common_proxies    # 共同代理（按国家分组）
+                "new": new_data_to_save,
+                "old": old_data_to_save
             }
             
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(save_data, f, indent=2, ensure_ascii=False)
-            print(f"💾💾💾💾💾💾💾💾 代理数据已保存到: {filepath}")
+            print(f"💾 代理数据已保存到: {filepath}")
+            print(f"📁 保存数据: new={len(save_data.get('new', {}))}个, old={len(save_data.get('old', {}))}个")
             
-            if os.path.exists(filepath):
-                file_size = os.path.getsize(filepath)
-                print(f"📁📁📁📁📁📁📁📁 文件大小: {file_size} 字节")
-                return True
-            else:
-                print("❌❌❌❌❌❌❌❌ 文件保存失败")
-                return False
+            return True
                 
         except Exception as e:
-            print(f"❌❌❌❌❌❌❌❌ 保存文件失败: {e}")
+            print(f"❌ 保存文件失败: {e}")
             return False
     
     def run(self):
@@ -444,80 +408,112 @@ class Socks5ProxyCollectorWithNotify:
         print("SOCKS5代理监控 - 目标国家版 (SG/HK/KR/JP)")
         print("=" * 60)
         
-        os.makedirs(self.save_dir, exist_ok=True)
-        print(f"📁📁📁📁📁📁📁📁 工作目录: {self.save_dir}")
-        print(f"🎯🎯🎯🎯🎯🎯🎯🎯 目标国家: {', '.join(self.target_countries)}")
-        print(f"🌐🌐🌐🌐🌐🌐🌐🌐 测试地址: {self.test_url}")
+        # 1. 检查文件是否存在，如果不存在则创建
+        filepath = os.path.join(self.save_dir, self.filename)
+        if not os.path.exists(filepath):
+            print("📄 首次运行，创建数据文件...")
+            os.makedirs(self.save_dir, exist_ok=True)
+            initial_data = {"new": {}, "old": {}}
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(initial_data, f, indent=2, ensure_ascii=False)
+            self.previous_data = initial_data
+            print("✅ 数据文件创建完成")
+        else:
+            # 加载现有数据
+            self.load_previous_data()
         
-        # 1. 加载Telegram配置
+        # 2. 加载Telegram配置
         telegram_ready = self.load_telegram_config()
-        
-        # 2. 加载上一次数据
-        has_previous_data = self.load_previous_data()
         
         # 3. 获取新数据
         proxies = self.fetch_proxies()
         if not proxies:
             if telegram_ready:
-                self.send_telegram_message("❌❌❌❌❌❌❌❌ 无法获取SOCKS5代理数据")
+                self.send_telegram_message("❌ 无法获取SOCKS5代理数据")
             return
         
         # 4. 处理代理数据
         self.process_proxies(proxies)
         
-        # 5. 找出新增的目标国家代理（与上一次new数据对比）
-        new_proxies = self.find_new_target_proxies()
+        # 5. 如果没有获取到代理，直接返回
+        if not self.all_current_proxies:
+            print("ℹ️ 没有获取到任何代理")
+            return
         
-        # 6. 找出共同代理（与上一次old数据对比）
-        common_proxies = self.find_common_proxies()
+        # 6. 对当前所有代理进行测试
+        print("🧪 开始代理测试...")
         
-        # 7. 对代理进行测试（新增功能）
-        print("🧪🧪🧪🧪🧪🧪🧪🧪 开始代理测试...")
+        # 将当前所有代理按国家分组进行测试
+        all_proxies_by_country = {}
+        for proxy in self.all_current_proxies:
+            country = proxy["country"]
+            if country not in all_proxies_by_country:
+                all_proxies_by_country[country] = []
+            all_proxies_by_country[country].append(proxy)
         
-        # 测试新增代理
-        if new_proxies:
-            print("🔍🔍🔍 测试新增代理...")
-            new_proxies = self.filter_tested_proxies(new_proxies)
-        else:
-            print("ℹℹ️ 无新增代理需要测试")
+        # 测试所有代理
+        tested_proxies_by_country = self.filter_tested_proxies(all_proxies_by_country)
         
-        # 测试共同代理
-        if common_proxies:
-            print("🔍🔍🔍 测试共同代理...")
-            common_proxies = self.filter_tested_proxies(common_proxies)
-        else:
-            print("ℹℹ️ 无共同代理需要测试")
+        # 如果没有测试成功的代理，直接返回
+        if not tested_proxies_by_country:
+            print("ℹ️ 没有测试成功的代理")
+            return
         
-        # 8. 只有在有新增代理或共同节点时才发送消息
-        if telegram_ready and (new_proxies or common_proxies):
-            message_parts = []
-            
-            # 新增代理部分（只显示目标国家）
-            if new_proxies:
-                total_new = sum(len(p) for p in new_proxies.values()) 
-                message_parts.append(self.format_target_countries_message(new_proxies, "新增代理"))
-            
-            # 共同代理部分（显示所有国家）
-            if common_proxies:
-                total_common = sum(len(p) for p in common_proxies.values()) 
-                message_parts.append(self.format_all_proxies_message(common_proxies, "稳定代理"))
-            
+        # 更新当前代理列表为测试通过的代理
+        self.all_current_proxies = []
+        for proxies_list in tested_proxies_by_country.values():
+            self.all_current_proxies.extend(proxies_list)
+        
+        # 7. 提取目标国家的代理
+        target_country_proxies = {}
+        for country in self.target_countries:
+            if country in tested_proxies_by_country:
+                target_country_proxies[country] = tested_proxies_by_country[country]
+        
+        # 8. 找出新增的目标国家代理（与上一次new数据对比）
+        new_proxies_by_country = self.find_new_target_proxies(target_country_proxies)
+        
+        # 9. 找出稳定代理（与上一次old数据对比）
+        common_proxies_by_country = self.find_common_proxies(tested_proxies_by_country)
+        
+        # 10. 检查是否需要发送通知
+        should_send_notification = False
+        message_parts = []
+        
+        # 检查是否有新增代理
+        if new_proxies_by_country:
+            total_new = sum(len(p) for p in new_proxies_by_country.values())
+            if total_new > 0:
+                should_send_notification = True
+                message_parts.append(self.format_target_countries_message(new_proxies_by_country, "新增代理"))
+        
+        # 检查是否有稳定代理
+        if common_proxies_by_country:
+            total_common = sum(len(p) for p in common_proxies_by_country.values())
+            if total_common > 0:
+                should_send_notification = True
+                message_parts.append(self.format_all_proxies_message(common_proxies_by_country, "稳定代理"))
+        
+        # 11. 发送通知
+        if should_send_notification and telegram_ready:
             full_message = "\n\n".join(message_parts)
             self.send_telegram_message(full_message)
-        elif not (new_proxies or common_proxies):
-            print("ℹℹ️ 没有新增代理和稳定代理，不发送通知")
+            print("✅ 通知已发送")
+        elif should_send_notification and not telegram_ready:
+            print("ℹ️ 有更新但Telegram未配置，跳过通知")
         else:
-            print("ℹℹ️ Telegram未配置，跳过通知")
+            print("ℹ️ 没有新增代理和稳定代理，不发送通知")
         
-        # 9. 显示统计信息
-        total_new = sum(len(p) for p in new_proxies.values()) if new_proxies else 0
-        total_common = sum(len(p) for p in common_proxies.values()) if common_proxies else 0
-        print(f"🆕🆕🆕 新增代理: {total_new} 个")
-        print(f"🔁🔁 共同代理: {total_common} 个")
-        print(f"🌍🌍 总代理数: {len(self.all_current_proxies)} 个")
+        # 12. 显示统计信息
+        total_new = sum(len(p) for p in new_proxies_by_country.values()) if new_proxies_by_country else 0
+        total_common = sum(len(p) for p in common_proxies_by_country.values()) if common_proxies_by_country else 0
+        print(f"🆕 新增代理: {total_new} 个")
+        print(f"🔁 稳定代理: {total_common} 个")
+        print(f"🌍 总代理数: {len(self.all_current_proxies)} 个")
+        print(f"🎯 目标国家代理: {sum(len(p) for p in target_country_proxies.values())} 个")
         
-        # 10. 保存数据（只保存测试通过的代理）
-        self.save_to_file(new_proxies, common_proxies)
+        # 13. 保存数据
+        self.save_to_file(new_proxies_by_country, common_proxies_by_country, tested_proxies_by_country)
         
         print("=" * 40)
         print("✅ 程序执行完成")
