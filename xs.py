@@ -47,7 +47,7 @@ def fetch_content(url, content_list, config):
     """抓取给定站点内容并添加到目标列表"""
     try:
         print(f"正在访问网站：{url}")
-        res = requests.get(url, timeout=10)
+        res = requests.get(url, timeout=15)
         res.encoding = 'gb2312'  # 根据页面实际编码设置
         soup = BeautifulSoup(res.text, 'html.parser')
         info_divs = soup.find_all('div', class_=config['html_parsing']['infos_div_class'])
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # 拼接当前内容（包括动态标题）
     for site_name, data in novel_data.items():
-        current_content += f"{site_name}: {', '.join(data) if data else '无更新内容'}\n"
+        current_content = f"{site_name}: {', '.join(data) if data else '无更新内容'}\n"
 
     # 输出对比信息
     print(f"旧内容长度: {len(previous_content)}")
