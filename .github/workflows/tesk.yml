@@ -32,7 +32,8 @@ jobs:
       env:
         TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}  # 修正为代码期望的名称
         TGG1: ${{ secrets.TGG1 }}                 # 使用 TGG1 而不是 TG_USER_ID
-      run: python tesk/tesk.py
+      run: python tesk/tesk.py && cd tesk && rm telsocks.json telsocks.txt
+           
 
     - name: Check for changes
       id: git-check
