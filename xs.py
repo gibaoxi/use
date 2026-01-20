@@ -39,8 +39,10 @@ def save_current_content(content):
         print(f"[错误] 无法保存到 novel.txt：{e}")
 
 
-# 进行内容变化比较
-def content_changed(old_content: str, new_content True
+def content_changed(old_content: str, new_content: str) -> bool:
+    """检查 old_content 和 new_content 是否不同"""
+    if not old_content:
+        return True  # 如果没有旧内容，则认为内容有变化
     return old_content.strip() != new_content.strip()
 
 
