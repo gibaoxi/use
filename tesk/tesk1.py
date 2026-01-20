@@ -295,14 +295,11 @@ class Socks5ProxyCollectorWithNotify:
         """创建Telegram代理链接"""
         return f"tg://socks?server={ip}&port={port}"
 
-    def format_proxy_list_for_message(self, proxies_by_country):
-        """格式化代理列表用于消息发送"""
+    def format_all_proxies_for_message(self, proxies_by_country):
+        """格式化所有代理用于消息发送（不筛选国家）"""
         message_parts = []
         
         for country, proxies in proxies_by_country.items():
-            if country not in self.target_countries:
-                continue
-                
             message_parts.append(f"{country} ({len(proxies)}个):\n")
             
             for i, proxy in enumerate(proxies, 1):
@@ -313,8 +310,6 @@ class Socks5ProxyCollectorWithNotify:
                     message_parts.append(f'  {i}. <a href="{telegram_link}">{proxy["ip_port"]}</a> {ping}ms\n')
                 else:
                     message_parts.append(f'  {i}. {proxy["ip_port"]} {ping}ms\n')
-            
-            message_parts.append("\n")
         
         return "".join(message_parts)
 
@@ -444,17 +439,17 @@ class Socks5ProxyCollectorWithNotify:
                 message_parts = []
                 
                 # 第一行：统计信息
-                message_parts.append(f"🆕 新增代理: {total_new}个 | 🔁 稳定代理: {total_common}个\n")
+                message_parts.append(f"新增: {total_new}个 | 稳定: {total_common}个\n")
                 
-                # 添加new部分
+                # 添加new部分 - 直接发送ts.json中的内容，不筛选
                 if current_data.get("new"):
-                    message_parts.append("\n🆕 新增代理:\n")
-                    message_parts.append(self.format_proxy_list_for_message(current_data["new"]))
+                    message_parts.append("\nnew\n")
+                    message_parts.append(self.format_all_proxies_for_message(current_data["new"]))
                 
-                # 添加old部分
+                # 添加old部分 - 直接发送ts.json中的内容，不筛选
                 if current_data.get("old"):
-                    message_parts.append("\n🔁 稳定代理:\n")
-                    message_parts.append(self.format_proxy_list_for_message(current_data["old"]))
+                    message_parts.append("\nold:\n")
+                    message_parts.append(self.format_all_proxies_for_message(current_data["old"]))
                 
                 # 发送消息
                 full_message = "".join(message_parts)
@@ -468,8 +463,8 @@ class Socks5ProxyCollectorWithNotify:
             print("ℹℹ️ 没有新增代理和稳定代理，不发送通知")
 
         # 13. 显示统计信息
-        print(f"🆕🆕🆕 新增代理: {total_new} 个")
-        print(f"🔁🔁 稳定代理: {total_common} 个")
+        print(f"新增: {total_new} 个")
+        print(f"稳定: {total_common} 个")
         print(f"🌍🌍 总代理数: {len(self.all_current_proxies)} 个")
         print(f"🎯🎯 目标国家代理: {sum(len(p) for p in target_country_proxies.values())} 个")
 
