@@ -1,11 +1,11 @@
 {
     "urls": {
-        "qbtr": "https://qbtr.me/tongren/",
-        "tongrenquan": "https://tongrenquan.org/tongren/",
-        "trxs": "https://trxs.cc/tongren/",
-        "jpxs": "https://jpxs123.cc/",
-        "bixian": "https://bixiange.top/",
-        "tongrenshe": "https://tongrenshe.cc/tongren/"
+        "全本同人m": "https://qbtr.me/tongren/",
+        "同人圈": "https://tongrenquan.org/tongren/",
+        "同人小说": "https://trxs.cc/tongren/",
+        "精品小说": "https://jpxs123.cc/",
+        "笔仙阁m": "https://bixiange.top/",
+        "同人社": "https://tongrenshe.cc/tongren/"
     },
     "html_parsing": {
         "infos_div_class": "infos",
