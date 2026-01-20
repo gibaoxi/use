@@ -4,6 +4,10 @@ import os
 import time
 import socket
 from datetime import datetime
+import urllib3
+
+# 禁用SSL证书验证警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class Socks5ProxyCollectorWithNotify:
     def __init__(self):
@@ -148,21 +152,30 @@ class Socks5ProxyCollectorWithNotify:
     def load_telegram_config(self):
         """从环境变量加载Telegram配置"""
         try:
-            self.telegram_bot_token = '7687806689:AAGa_UX9k1uW6fnGo3lI_HHoIEw1HKDkiXc'        
-            self.telegram_chat_id = '6776513150'
+            # 从环境变量读取配置
+            self.telegram_bot_token = os.environ.get('TG_BOT_TOKEN')
+            self.telegram_chat_id = os.environ.get('TGG1')
             
-            if not self.telegram_bot_token or not self.telegram_chat_id:
+            # 检查配置是否完整
+            if not self.telegram_bot_token:
+                print("❌ 未找到环境变量 TG_BOT_TOKEN")
+                return False
+                
+            if not self.telegram_chat_id:
+                print("❌ 未找到环境变量 TGG1")
                 return False
             
+            print("✅ Telegram配置加载成功")
             return True
             
         except Exception as e:
-            print(f"❌ 加载配置失败: {e}")
+            print(f"❌ 加载Telegram配置失败: {e}")
             return False
     
     def send_telegram_message(self, message: str):
         """发送Telegram消息"""
         if not self.telegram_bot_token or not self.telegram_chat_id:
+            print("❌ Telegram配置不完整，无法发送消息")
             return False
         
         try:
@@ -175,10 +188,15 @@ class Socks5ProxyCollectorWithNotify:
             }
             
             response = requests.post(url, data=data, timeout=30)
-            return response.status_code == 200
+            if response.status_code == 200:
+                print("✅ Telegram消息发送成功")
+                return True
+            else:
+                print(f"❌ Telegram消息发送失败，状态码: {response.status_code}")
+                return False
                 
         except Exception as e:
-            print(f"❌ 发送消息失败: {e}")
+            print(f"❌ 发送Telegram消息失败: {e}")
             return False
     
     def fetch_proxies(self):
