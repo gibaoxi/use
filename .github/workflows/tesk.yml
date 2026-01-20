@@ -2,38 +2,38 @@ name: tesk
 
 on:
   schedule:
-    - cron: '20 20 * * *'  # 每6小时运行一次
+    - cron: '20 20 * * *'  # 每天 UTC 20:20 运行
   workflow_dispatch:  # 允许手动触发
   push:
     branches: [ main ]
     paths:
-      - 'tesk.py'
+      - 'tesk/tesk.py'
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0  # 获取所有历史记录
-    
+        fetch-depth: 0
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
     - name: Install dependencies
-      run: pip install -r requirements.txt
-    
+      run: pip install requests urllib3
+
     - name: Run proxy monitor
       env:
-        TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-        ID: ${{ secrets.TG_USER_ID }}
-      run: python tesk/tesk.py  # 修改为你的Python脚本文件名
-    
+        TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}  # 修正为代码期望的名称
+        TGG1: ${{ secrets.TGG1 }}                 # 使用 TGG1 而不是 TG_USER_ID
+      run: python tesk/tesk.py
+
     - name: Check for changes
       id: git-check
       run: |
