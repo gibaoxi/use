@@ -1,0 +1,14 @@
+{
+    "urls": {
+        "qbtr": "https://qbtr.me/tongren/",
+        "tongrenquan": "https://tongrenquan.org/tongren/",
+        "trxs": "https://trxs.cc/tongren/",
+        "jpxs": "https://jpxs123.cc/",
+        "bixian": "https://bixiange.top/",
+        "tongrenshe": "https://www.tongrenshe.com/"
+    },
+    "html_parsing": {
+        "infos_div_class": "infos",
+        "label_date_class": "date"
+    }
+}
