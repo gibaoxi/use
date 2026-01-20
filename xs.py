@@ -5,7 +5,6 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from notify import telegram
 
-# 从配置文件加载动态参数
 def load_config():
     config_path = 'config.json'
     if not os.path.exists(config_path):
@@ -13,9 +12,7 @@ def load_config():
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-# 读取之前保存的内容
 def read_previous_content(save_path):
-    """读取之前的内容（保存的小说文件）"""
     try:
         if os.path.exists(save_path):
             with open(save_path, 'r', encoding='utf-8') as file:
@@ -25,9 +22,7 @@ def read_previous_content(save_path):
         print(f"[错误] 无法读取已保存文件 {save_path}：{e}")
         return ""
 
-# 保存最新内容
 def save_current_content(content, save_path):
-    """保存当前内容到目标文件"""
     try:
         with open(save_path, 'w', encoding='utf-8') as file:
             file.write(content)
@@ -35,56 +30,103 @@ def save_current_content(content, save_path):
     except Exception as e:
         print(f"[错误] 无法保存到 {save_path}：{e}")
 
-# 比较内容是否发生变化
 def content_changed(old_content: str, new_content: str) -> bool:
-    """对比新旧内容，判断是否发生变化"""
     if not old_content:
-        return True  # 如果旧内容为空，表示已发生变化
+        return True
     return old_content.strip() != new_content.strip()
 
-# 从目标网站抓取内容
-def fetch_content(url, content_list, config):
-    """抓取给定站点内容并添加到目标列表"""
+def fetch_content(url, site_name, config):
+    """抓取网站内容"""
     try:
-        print(f"正在访问网站：{url}")
-        res = requests.get(url, timeout=15)
-        res.encoding = 'gb2312'  # 根据页面实际编码设置
-        soup = BeautifulSoup(res.text, 'html.parser')
-        info_divs = soup.find_all('div', class_=config['html_parsing']['infos_div_class'])
+        print(f"正在访问网站：{site_name} - {url}")
         
-        today = datetime.now().strftime('%Y-%m-%d')
-        for div in info_divs:
-            date_label = div.find('label', class_=config['html_parsing']['label_date_class'])
-            if date_label and date_label.text.strip() == today:
-                title = div.find('h3')
-                if title:
-                    content_list.append(title.text.strip())
+        # 设置请求头
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        res = requests.get(url, timeout=15, headers=headers)
+        
+        # 自动检测编码
+        if res.encoding.lower() in ['gb2312', 'gbk', 'gb18030']:
+            res.encoding = 'gbk'
+        else:
+            res.encoding = 'utf-8'
+            
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 尝试多种可能的日期格式
+        today_formats = [
+            datetime.now().strftime('%Y-%m-%d'),
+            datetime.now().strftime('%m-%d'),
+            datetime.now().strftime('%Y/%m/%d')
+        ]
+        
+        titles = []
+        
+        # 查找包含日期的元素
+        date_elements = soup.find_all(class_=config['html_parsing']['label_date_class'])
+        
+        for date_elem in date_elements:
+            date_text = date_elem.text.strip()
+            
+            # 检查是否匹配今天日期
+            if any(today in date_text for today in today_formats):
+                # 查找相邻的标题元素
+                parent = date_elem.parent
+                if parent:
+                    # 尝试查找h3标题
+                    title_elem = parent.find('h3') or parent.find('a') or date_elem.find_next_sibling()
+                    if title_elem and title_elem.text.strip():
+                        titles.append(title_elem.text.strip())
+        
+        print(f"[{site_name}] 找到 {len(titles)} 个今日更新")
+        return titles
+        
     except Exception as e:
-        print(f"[错误] 无法处理 {url}：{e}")
+        print(f"[错误] 处理 {site_name} 时出错：{e}")
+        return []
 
-# 加载配置
-config = load_config()
+def format_message(novel_data):
+    """按照指定格式格式化消息"""
+    message_lines = []
+    
+    for site_name, titles in novel_data.items():
+        if titles:
+            # 将标题列表格式化为字符串
+            titles_str = ", ".join([f"'{title}'" for title in titles])
+            message_lines.append(f"{site_name}[{titles_str}]")
+        else:
+            message_lines.append(f"{site_name}[]")
+    
+    return "\n".join(message_lines)
 
 if __name__ == '__main__':
+    # 加载配置
+    config = load_config()
+    
     # 定义变量
-    now = datetime.today().strftime('%Y-%m-%d')
     save_path = "novel.txt"
-    novel_data = {key: [] for key in config['urls']}  # 列表存储每个站点的结果
-
+    
     # 读取之前保存的内容
     previous_content = read_previous_content(save_path)
-
+    
+    # 存储所有网站的内容
+    novel_data = {}
+    
     # 逐个站点抓取内容
-    for name, url in config['urls'].items():
-        fetch_content(url, novel_data[name], config)
-
-    # 拼接当前内容（包括动态标题）
-    for site_name, data in novel_data.items():
-        current_content = f"{site_name}: {', '.join(data) if data else '无更新内容'}\n"
-
-    # 输出对比信息
+    for site_name, url in config['urls'].items():
+        titles = fetch_content(url, site_name, config)
+        novel_data[site_name] = titles
+    
+    # 格式化消息
+    current_content = format_message(novel_data)
+    
+    # 输出调试信息
     print(f"旧内容长度: {len(previous_content)}")
     print(f"新内容长度: {len(current_content)}")
+    print("抓取到的内容:")
+    print(current_content)
 
     # 检测内容是否变化
     if content_changed(previous_content, current_content):
