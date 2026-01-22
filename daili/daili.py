@@ -271,7 +271,7 @@ class GitHubProxyTester:
         elif proxy_type == "SOCKS4":
             return f"socks4://{proxy}"
         elif proxy_type == "SOCKS5":
-            return f"socks5h://{proxy}"
+            return f"socks5://{proxy}"
         else:
             return f"http://{proxy}"
     
