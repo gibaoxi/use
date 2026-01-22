@@ -19,7 +19,6 @@ jobs:
     - name: Run test
       working-directory: ./daili
       run: |
-        mkdir -p result
         pip install requests urllib3
         python daili.py
         
