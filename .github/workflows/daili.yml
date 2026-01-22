@@ -19,7 +19,7 @@ jobs:
     - name: Run test
       working-directory: ./daili
       run: |
-        pip install requests urllib3
+        pip install requests[socks] urllib3
         python daili.py
         
     - name: Simple commit
