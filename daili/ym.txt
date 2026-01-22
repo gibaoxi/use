@@ -1,2 +1,2 @@
-https://httpbin.org/ip
 https://api.telegram.org
+https://ms.bdstatic.com
