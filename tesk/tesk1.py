@@ -17,7 +17,7 @@ class Socks5ProxyCollectorWithNotify:
         self.target_countries = ["SG", "HK", "KR", "JP"]  # 只关注这四个国家
 
         # 测试配置
-        self.test_url = "https://httpbin.org/ip"
+        self.test_url = "https://api.telegram.org"
 
         # 存储当前获取的所有代理（不区分国家）
         self.all_current_proxies = []
@@ -90,8 +90,8 @@ class Socks5ProxyCollectorWithNotify:
             print(f"🔍🔍 测试SOCKS5代理: {ip}:{port}")
 
             proxies = {
-                'http': f'socks5://{ip}:{port}',
-                'https': f'socks5://{ip}:{port}'
+                'http': f'socks5h://{ip}:{port}',
+                'https': f'socks5h://{ip}:{port}'
             }
 
             start_time = datetime.now()
