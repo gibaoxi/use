@@ -33,7 +33,7 @@ jobs:
       env:
         TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
         TGG1: ${{ secrets.TGG1 }}
-      run: python tesk/tesk1.py
+      run: python tesk/tesk.py
     - name: Check for changes
       id: git-check
       run: |
