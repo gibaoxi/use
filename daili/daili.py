@@ -714,24 +714,32 @@ class GitHubProxyTester:
             print(f"下载失败: {e}")
             return []
     
-    def save_proxies_to_file(self, proxies, file_path, proxy_type):
-        """保存代理列表到文件"""
-        if not proxies:
-            print(f"没有{proxy_type}代理可保存")
-            return
+    def save_results(self, successful: List[Tuple[Proxy, Dict]], ptype: str):
+        """
+        保存成功结果，按平均延迟排序。
+        同时保存txt和json格式。
+        """
+        # 保存txt文件（保持原格式）
+        txt_file_path = os.path.join(self.result_dir, f"{ptype}.txt")
+        with open(txt_file_path, 'w', encoding='utf-8') as f:
+            for proxy, res in sorted(successful, key=lambda x: x[1]['avg_latency']):
+                f.write(f"{str(proxy)} /# {res['avg_latency']:.0f}ms | validated: {res['validation_time']}\n")
         
-        unique_proxies = list(set(proxies))
-        print(f"{proxy_type}代理去重后: {len(unique_proxies)} 个")
+        # 提取IP和端口，保存json文件
+        json_file_path = os.path.join(self.result_dir, f"{ptype}.json")
+        ip_port_list = []
         
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(f"# {proxy_type}代理列表\n")
-            f.write(f"# 总代理数: {len(unique_proxies)}\n")
-            f.write("#" * 50 + "\n\n")
-            
-            for proxy in sorted(unique_proxies):
-                f.write(f"{proxy}\n")
+        for proxy, res in successful:
+            # 直接从Proxy对象获取IP和端口
+            ip_port = f"{proxy.host}:{proxy.port}"
+            ip_port_list.append(ip_port)
         
-        print(f"已保存到: {file_path}")
+        # 保存为json格式
+        with open(json_file_path, 'w', encoding='utf-8') as f:
+            json.dump({"ts": ip_port_list}, f, ensure_ascii=False, indent=2)
+        
+        print(f"已保存 {len(successful)} 个{ptype.upper()}代理到 {txt_file_path} 和 {json_file_path}")
+
     
     def parse_source_file(self):
         """解析source.txt文件，提取下载链接"""
@@ -913,72 +921,6 @@ class GitHubProxyTester:
         
         print("GitHub自动代理测试完成!")
     
-    def generate_readme(self, test_results, total_time):
-        """生成README文件"""
-        readme_file = os.path.join(self.base_dir, "README.md")
-        
-        with open(readme_file, 'w', encoding='utf-8') as f:
-            f.write("# 代理测试仓库\n\n")
-            f.write("自动测试和验证HTTP、HTTPS、SOCKS4、SOCKS5代理\n\n")
-            
-            f.write("## 最新测试结果\n\n")
-            f.write(f"**最后更新:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            
-            f.write("| 代理类型 | 成功数量 | 测试时间 |\n")
-            f.write("|---------|---------|---------|\n")
-            
-            for proxy_type, count in test_results.items():
-                if proxy_type in self.proxy_files:
-                    info = self.proxy_files[proxy_type]
-                    f.write(f"| {info['name']} | {count} | {datetime.now().strftime('%H:%M:%S')} |\n")
-            
-            minutes = int(total_time // 60)
-            seconds = int(total_time % 60)
-            f.write(f"| **总计** | **{sum(test_results.values())}** | **{minutes}分{seconds}秒** |\n\n")
-            
-            f.write("## 文件说明\n\n")
-            f.write("- `proxy_tester.py` - 主测试脚本\n")
-            f.write("- `source.txt` - 代理源配置\n")
-            f.write("- `ym.txt` - 测试网站列表\n")
-            f.write("- `http.txt` - HTTP代理列表\n")
-            f.write("- `https.txt` - HTTPS代理列表\n")
-            f.write("- `sock4.txt` - SOCKS4代理列表\n")
-            f.write("- `sock5.txt` - SOCKS5代理列表\n")
-            f.write("- `result/` - 测试结果目录\n\n")
-            
-            f.write("## 使用方法\n\n")
-            f.write("### 自动运行\n")
-            f.write("```bash\npython proxy_tester.py\n```\n\n")
-            
-            f.write("### 手动运行\n")
-            f.write("```python\nfrom proxy_tester import GitHubProxyTester\n")
-            f.write("tester = GitHubProxyTester()\n")
-            f.write("tester.auto_run()  # 自动运行完整流程\n")
-            f.write("```\n\n")
-            
-            f.write("## 配置说明\n\n")
-            f.write("### source.txt 格式\n")
-            f.write("```json\n")
-            f.write("[\n")
-            f.write('  {"http": ["http://example.com/proxy.txt", "http://example2.com/proxy.txt"]},\n')
-            f.write('  {"https": ["https://example.com/https.txt"]},\n')
-            f.write('  {"socks4": ["http://example.com/socks4.txt"]},\n')
-            f.write('  {"socks5": ["http://example.com/socks5.txt"]}\n')
-            f.write("]\n")
-            f.write("```\n\n")
-            
-            f.write("### ym.txt 格式\n")
-            f.write("```\n")
-            f.write("# 每行一个测试网站\n")
-            f.write("https://www.google.com\n")
-            f.write("https://www.bing.com\n")
-            f.write("https://telegram.org\n")
-            f.write("```\n\n")
-            
-            f.write("## 许可证\n")
-            f.write("MIT License\n")
-        
-        print(f"已生成README文件: {readme_file}")
 
 def main():
     """主函数"""
