@@ -916,9 +916,7 @@ class GitHubProxyTester:
         print(f"总耗时: {minutes}分{seconds}秒")
         print(f"结果文件保存在: {self.result_dir}")
         
-        # 生成README文件
-        self.generate_readme(test_results, total_time)
-        
+        # 生成README文件        
         print("GitHub自动代理测试完成!")
     
 
