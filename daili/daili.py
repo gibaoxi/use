@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+GitHub自动代理测试脚本 - 支持HTTP、HTTPS、SOCKS4、SOCKS5代理测试
+"""
+
 import os
 import sys
 import time
@@ -8,13 +12,10 @@ import requests
 import concurrent.futures
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
-import urllib3
 import threading
 import re
 from urllib.parse import urlparse
-
-# 禁用SSL警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import warnings
 
 class GitHubProxyTester:
     def __init__(self):
@@ -31,8 +32,8 @@ class GitHubProxyTester:
         self.proxy_files = {
             'http': {'name': 'HTTP', 'file': 'http.txt'},
             'https': {'name': 'HTTPS', 'file': 'https.txt'}, 
-            'socks4': {'name': 'SOCKS4', 'file': 'sock4.txt'},
-            'socks5': {'name': 'SOCKS5', 'file': 'sock5.txt'}
+            'socks4': {'name': 'SOCKS4', 'file': 'socks4.txt'},
+            'socks5': {'name': 'SOCKS5', 'file': 'socks5.txt'}
         }
         
         # 缓存测试网站
@@ -45,6 +46,190 @@ class GitHubProxyTester:
         print(f"🔧🔧🔧🔧 初始化GitHub代理测试器")
         print(f"📁📁📁📁 工作目录: {self.base_dir}")
         print(f"💾💾💾💾 结果目录: {self.result_dir}")
+    
+    def clean_and_validate_proxy(self, proxy_str):
+        """合并清理和验证代理功能，返回清理后的代理或None（如果无效）"""
+        if not proxy_str or not isinstance(proxy_str, str):
+            return None
+        
+        proxy = proxy_str.strip()
+        
+        # 去掉/#后面的延迟信息
+        if '/#' in proxy:
+            proxy = proxy.split('/#')[0].strip()
+        
+        # 如果已经有协议头，直接返回
+        if proxy.startswith(('http://', 'https://', 'socks4://', 'socks5://')):
+            return proxy if self._validate_proxy_format(proxy) else None
+        
+        # 使用urlparse解析代理格式
+        if '://' not in proxy:
+            test_url = 'http://' + proxy
+        else:
+            test_url = proxy
+        
+        try:
+            parsed = urlparse(test_url)
+            
+            # 检查主机名
+            hostname = parsed.hostname
+            if not hostname:
+                return None
+            
+            # 检查端口
+            port = parsed.port
+            if port is None:
+                # 尝试从netloc中提取端口
+                if ':' in parsed.netloc:
+                    try:
+                        port_str = parsed.netloc.split(':')[-1]
+                        if '/' in port_str:
+                            port_str = port_str.split('/')[0]
+                        port = int(port_str)
+                    except (ValueError, IndexError):
+                        return None
+            
+            if port is not None and not (1 <= port <= 65535):
+                return None
+            
+            # 验证IP地址格式（如果是IP的话）
+            if hostname.replace('.', '').isdigit():
+                try:
+                    socket.inet_aton(hostname)
+                except socket.error:
+                    # 不是有效的IP地址，但可能是域名，所以仍然有效
+                    pass
+            
+            # 返回清理后的代理格式
+            if parsed.username or parsed.password:
+                # 有认证信息的代理
+                auth_part = ""
+                if parsed.username:
+                    auth_part = parsed.username
+                    if parsed.password:
+                        auth_part += ":" + parsed.password
+                    auth_part += "@"
+                
+                if hostname and port:
+                    return f"{auth_part}{hostname}:{port}"
+                elif hostname:
+                    return hostname
+            else:
+                # 没有认证信息的代理
+                if ':' in proxy and '@' not in proxy:
+                    return proxy
+                elif hostname and port:
+                    return f"{hostname}:{port}"
+                elif hostname:
+                    return hostname
+            
+            return proxy
+            
+        except Exception as e:
+            # 如果urlparse解析失败，使用简单方法
+            if ':' in proxy:
+                parts = proxy.split(':')
+                if len(parts) == 2:
+                    ip = parts[0].strip()
+                    port_str = parts[1].strip()
+                    if '/' in port_str:
+                        port_str = port_str.split('/')[0]
+                    
+                    try:
+                        port = int(port_str)
+                        if 1 <= port <= 65535:
+                            return f"{ip}:{port}"
+                    except ValueError:
+                        pass
+            
+            return None
+    
+    def _validate_proxy_format(self, proxy):
+        """内部验证代理格式是否有效"""
+        if not proxy:
+            return False
+        
+        # 测试URL用于解析
+        if '://' not in proxy:
+            test_url = 'http://' + proxy
+        else:
+            test_url = proxy
+        
+        try:
+            parsed = urlparse(test_url)
+            
+            # 检查主机名
+            hostname = parsed.hostname
+            if not hostname:
+                return False
+            
+            # 检查端口
+            port = parsed.port
+            if port is None:
+                # 尝试从netloc中提取端口
+                if ':' in parsed.netloc:
+                    try:
+                        port_str = parsed.netloc.split(':')[-1]
+                        if '/' in port_str:
+                            port_str = port_str.split('/')[0]
+                        port = int(port_str)
+                    except (ValueError, IndexError):
+                        return False
+            
+            if port is not None and not (1 <= port <= 65535):
+                return False
+            
+            # 验证IP地址格式（如果是IP的话）
+            if hostname.replace('.', '').isdigit():
+                try:
+                    socket.inet_aton(hostname)
+                except socket.error:
+                    # 不是有效的IP地址，但可能是域名，所以仍然有效
+                    pass
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def get_proxy_url(self, proxy, proxy_type):
+        """根据代理类型生成完整的代理URL"""
+        if not proxy:
+            return ""
+        
+        # 如果代理已经有协议头，检查是否需要转换
+        if proxy.startswith(('http://', 'https://', 'socks4://', 'socks5://')):
+            current_protocol = proxy.split('://')[0] + '://'
+            target_protocol = ""
+            
+            if proxy_type == "HTTP":
+                target_protocol = "http://"
+            elif proxy_type == "HTTPS":
+                target_protocol = "https://"
+            elif proxy_type == "SOCKS4":
+                target_protocol = "socks4://"
+            elif proxy_type == "SOCKS5":
+                target_protocol = "socks5://"
+            else:
+                target_protocol = "http://"
+            
+            # 如果当前协议与目标协议不同，进行转换
+            if current_protocol != target_protocol:
+                return proxy.replace(current_protocol, target_protocol, 1)
+            else:
+                return proxy
+        
+        # 代理没有协议头，添加对应的协议
+        if proxy_type == "HTTP":
+            return f"http://{proxy}"
+        elif proxy_type == "HTTPS":
+            return f"https://{proxy}"
+        elif proxy_type == "SOCKS4":
+            return f"socks4://{proxy}"
+        elif proxy_type == "SOCKS5":
+            return f"socks5://{proxy}"
+        else:
+            return f"http://{proxy}"
     
     def extract_domain_info(self, url):
         """从URL中提取域名信息和check_string"""
@@ -149,8 +334,9 @@ class GitHubProxyTester:
                         for line in f:
                             line = line.strip()
                             if line and not line.startswith('#'):
-                                proxy = line.split('/#')[0].strip()
-                                if proxy and self.validate_proxy(proxy):
+                                # 使用合并的清理和验证功能
+                                proxy = self.clean_and_validate_proxy(line)
+                                if proxy:
                                     successful_proxies.append(proxy)
                     
                     if successful_proxies:
@@ -162,8 +348,9 @@ class GitHubProxyTester:
                                 for line in f:
                                     line = line.strip()
                                     if line and not line.startswith('#'):
-                                        proxy = self.clean_proxy(line)
-                                        if proxy and self.validate_proxy(proxy):
+                                        # 使用合并的清理和验证功能
+                                        proxy = self.clean_and_validate_proxy(line)
+                                        if proxy:
                                             existing_proxies.append(proxy)
                         
                         all_proxies = list(set(existing_proxies + successful_proxies))
@@ -188,89 +375,6 @@ class GitHubProxyTester:
         else:
             print("ℹℹℹℹ️ 没有找到可导入的成功代理")
     
-    def clean_proxy(self, proxy_str):
-        """清理代理格式"""
-        proxy = proxy_str.strip()
-        
-        if '/#' in proxy:
-            proxy = proxy.split('/#')[0]
-        
-        if proxy.startswith(('http://', 'https://', 'socks4://', 'socks5://')):
-            return proxy
-        
-        if ':' in proxy:
-            parts = proxy.split(':')
-            if len(parts) == 2:
-                ip = parts[0].strip()
-                port = parts[1].strip()
-                
-                if '/' in port:
-                    port = port.split('/')[0]
-                
-                return f"{ip}:{port}"
-        
-        return proxy
-    
-    def validate_proxy(self, proxy):
-        """验证代理格式是否有效"""
-        if not proxy:
-            return False
-        
-        if '@' in proxy:
-            try:
-                if '://' in proxy:
-                    protocol_part, rest = proxy.split('://', 1)
-                    if '@' in rest:
-                        auth_part, host_part = rest.split('@', 1)
-                        if ':' in host_part:
-                            host, port_str = host_part.split(':', 1)
-                            if '/' in port_str:
-                                port_str = port_str.split('/')[0]
-                            
-                            try:
-                                port = int(port_str)
-                                return 1 <= port <= 65535
-                            except ValueError:
-                                return False
-                return False
-            except Exception:
-                return False
-        else:
-            if ':' not in proxy:
-                return False
-            
-            try:
-                ip, port_str = proxy.split(':', 1)
-                port = int(port_str)
-                
-                if not 1 <= port <= 65535:
-                    return False
-                
-                try:
-                    socket.inet_aton(ip)
-                    return True
-                except socket.error:
-                    return True
-                    
-            except (ValueError, TypeError):
-                return False
-    
-    def get_proxy_url(self, proxy, proxy_type):
-        """根据代理类型生成代理URL"""
-        if proxy.startswith(('http://', 'https://', 'socks4://', 'socks5://')):
-            return proxy
-        
-        if proxy_type == "HTTP":
-            return f"http://{proxy}"
-        elif proxy_type == "HTTPS":
-            return f"https://{proxy}"
-        elif proxy_type == "SOCKS4":
-            return f"socks4://{proxy}"
-        elif proxy_type == "SOCKS5":
-            return f"socks5://{proxy}"
-        else:
-            return f"http://{proxy}"
-    
     def download_proxy_list(self, url, proxy_type):
         """从指定URL下载代理列表"""
         print(f"🌐🌐🌐🌐 下载{proxy_type}代理: {url}")
@@ -280,15 +384,17 @@ class GitHubProxyTester:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             }
             
-            response = requests.get(url, headers=headers, timeout=30, verify=False)
+            # 下载代理列表时不使用代理，验证SSL证书
+            response = requests.get(url, headers=headers, timeout=30, verify=True)
             
             if response.status_code == 200:
                 proxies = []
                 for line in response.text.splitlines():
                     line = line.strip()
                     if line and not line.startswith('#') and not line.startswith('//'):
-                        proxy = self.clean_proxy(line)
-                        if proxy and self.validate_proxy(proxy):
+                        # 使用合并的清理和验证功能
+                        proxy = self.clean_and_validate_proxy(line)
+                        if proxy:
                             proxies.append(proxy)
                 
                 print(f"✅ 下载到 {len(proxies)} 个{proxy_type}代理")
@@ -456,8 +562,9 @@ class GitHubProxyTester:
                     if not line or line.startswith('#') or line.startswith('//'):
                         continue
                     
-                    proxy = self.clean_proxy(line)
-                    if proxy and self.validate_proxy(proxy):
+                    # 使用合并的清理和验证功能
+                    proxy = self.clean_and_validate_proxy(line)
+                    if proxy:
                         proxies.append(proxy)
                         lines += 1
                     
@@ -475,7 +582,7 @@ class GitHubProxyTester:
             return []
     
     def test_single_url(self, proxy, test_config, proxy_type):
-        """测试单个URL - 使用requests内置的SOCKS支持"""
+        """测试单个URL - 只在requests.get中使用verify=False"""
         result = {
             'proxy': proxy,
             'proxy_type': proxy_type,
@@ -507,15 +614,17 @@ class GitHubProxyTester:
         try:
             start_time = time.time()
             
-            # 使用requests内置的代理支持
-            response = requests.get(
-                test_config['url'],
-                proxies=proxies,
-                timeout=test_config.get('timeout', 8),
-                headers=headers,
-                verify=False,
-                allow_redirects=True
-            )
+            # 只在测试代理时禁用SSL验证
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                response = requests.get(
+                    test_config['url'],
+                    proxies=proxies,
+                    timeout=test_config.get('timeout', 8),
+                    headers=headers,
+                    verify=False,  # 只在测试代理时禁用SSL验证
+                    allow_redirects=True
+                )
             
             latency = time.time() - start_time
             result['latency_ms'] = latency * 1000
@@ -530,10 +639,10 @@ class GitHubProxyTester:
                     else:
                         # 检查页面是否包含常见HTML标记
                         page_text = response.text.lower()
-                        common_indicators = ['html', 'http', 'www', 'com', 'net', 'org', 'title', 'body', 'origin']
+                        common_indicators = ['html', 'http', 'www', 'com', 'net', 'org', 'title', 'body', 'head']
                         indicators_found = sum(1 for indicator in common_indicators if indicator in page_text)
                         
-                        if indicators_found >= 1:
+                        if indicators_found >= 2:  # 提高阈值减少误判
                             result['success'] = True
                             result['error'] = f"未找到 '{check_string}' 但页面有效"
                         else:
@@ -745,7 +854,7 @@ class GitHubProxyTester:
                 print(f"  {error:30s}: {count:3d}个 ({percentage:5.1f}%)")
     
     def extract_proxy_info_from_txt(self, txt_file_path, proxy_type):
-        """从txt文件中提取代理信息"""
+        """从txt文件中提取代理信息，去掉协议头"""
         proxies_list = []
         
         try:
@@ -753,10 +862,16 @@ class GitHubProxyTester:
                 for line in f:
                     line = line.strip()
                     if line and not line.startswith('#'):
-                        # 提取/#之前的内容
+                        # 提取/#之前的所有内容
                         if '/#' in line:
-                            proxy_part = line.split('/#')[0].strip()
-                            proxies_list.append(proxy_part)
+                            full_proxy = line.split('/#')[0].strip()
+                        else:
+                            full_proxy = line
+                        
+                        # 使用合并的清理和验证功能
+                        proxy = self.clean_and_validate_proxy(full_proxy)
+                        if proxy:
+                            proxies_list.append(proxy)
             
             print(f"✅ 从txt文件中提取了 {len(proxies_list)} 个{proxy_type}代理")
             return proxies_list
