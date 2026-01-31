@@ -7,7 +7,7 @@ from notify import telegram
 
 # 从配置文件加载动态参数
 def load_config():
-    config_path = './config/config.json'
+    config_path = './config/xs.json'
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"配置文件未找到：{config_path}")
     with open(config_path, 'r', encoding='utf-8') as f:
