@@ -7,7 +7,7 @@ from notify import telegram
 
 # 从配置文件加载动态参数
 def load_config():
-    config_path = 'config.json'
+    config_path = './config/config.json'
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"配置文件未找到：{config_path}")
     with open(config_path, 'r', encoding='utf-8') as f:
@@ -83,7 +83,7 @@ config = load_config()
 if __name__ == '__main__':
     # 定义变量
     now = datetime.today().strftime('%Y-%m-%d')
-    save_path = "novel.txt"
+    save_path = "./result/xs.txt"
     novel_data = {key: [] for key in config['urls']}  # 列表存储每个站点的结果
 
     # 读取之前保存的内容
