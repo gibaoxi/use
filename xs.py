@@ -83,7 +83,7 @@ config = load_config()
 if __name__ == '__main__':
     # 定义变量
     now = datetime.today().strftime('%Y-%m-%d')
-    save_path = "./result/xs.txt"
+    save_path = "./results/xs.txt"
     novel_data = {key: [] for key in config['urls']}  # 列表存储每个站点的结果
 
     # 读取之前保存的内容
