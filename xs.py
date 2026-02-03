@@ -15,40 +15,40 @@ def load_config():
 
 # 读取之前保存的内容
 def read_previous_content(save_path):
-    """读取之前的内容（保存的小说文件）"""
     try:
         if os.path.exists(save_path):
             with open(save_path, 'r', encoding='utf-8') as file:
                 return file.read().strip()
         return ""
     except Exception as e:
-        print(f"[错误] 无法读取已保存文件 {save_path}：{e}")
+        print(f"[错误] 无法读取已保存文件：{e}")
         return ""
 
 # 保存最新内容
 def save_current_content(content, save_path):
-    """保存当前内容到目标文件"""
     try:
+        # 确保目录存在
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         with open(save_path, 'w', encoding='utf-8') as file:
             file.write(content)
-        print("[成功] 已保存新内容到文件")
+        print("[成功] 已保存新内容到记录文件")
     except Exception as e:
-        print(f"[错误] 无法保存到 {save_path}：{e}")
+        print(f"[错误] 无法保存到文件：{e}")
 
 # 比较内容是否发生变化
 def content_changed(old_content: str, new_content: str) -> bool:
-    """对比新旧内容，判断是否发生变化"""
     if not old_content:
-        return True  # 如果旧内容为空，表示已发生变化
+        return True
     return old_content.strip() != new_content.strip()
 
 # 从目标网站抓取内容
 def fetch_content(url, content_list, config):
-    """抓取给定站点内容并添加到目标列表"""
     try:
-        print(f"正在访问网站：{url}")
+        print(f"🔍 正在访问网站：{url}")
         res = requests.get(url, timeout=15)
-        res.encoding = 'gb2312'  # 根据页面实际编码设置
+        # 自动识别页面编码，防止小说名乱码
+        res.encoding = res.apparent_encoding 
+        
         soup = BeautifulSoup(res.text, 'html.parser')
         info_divs = soup.find_all('div', class_=config['html_parsing']['infos_div_class'])
         
@@ -64,52 +64,44 @@ def fetch_content(url, content_list, config):
 
 # 格式化消息为指定格式
 def format_message(novel_data):
-    """按照指定格式格式化消息"""
+    """格式：站点名['小说名', '小说名']"""
     message_lines = []
-    
     for site_name, titles in novel_data.items():
-        if titles:
-            # 将标题列表格式化为字符串
-            titles_str = ", ".join([f"'{title}'" for title in titles])
-            message_lines.append(f"{site_name}[{titles_str}]")
-        else:
-            message_lines.append(f"{site_name}[]")
-    
+        titles_str = ", ".join([f"'{title}'" for title in titles])
+        message_lines.append(f"{site_name}[{titles_str}]")
     return "\n".join(message_lines)
 
-# 加载配置
-config = load_config()
-
 if __name__ == '__main__':
-    # 定义变量
-    now = datetime.today().strftime('%Y-%m-%d')
+    # 1. 初始化
+    config = load_config()
     save_path = "./results/xs.txt"
-    novel_data = {key: [] for key in config['urls']}  # 列表存储每个站点的结果
+    novel_data = {key: [] for key in config['urls']}
 
-    # 读取之前保存的内容
+    # 2. 读取历史记录
     previous_content = read_previous_content(save_path)
 
-    # 逐个站点抓取内容
+    # 3. 抓取各站点内容
     for name, url in config['urls'].items():
         fetch_content(url, novel_data[name], config)
 
-    # 格式化当前内容为指定格式
+    # 4. 格式化当前内容
     current_content = format_message(novel_data)
 
-    # 输出对比信息
-    print(f"旧内容长度: {len(previous_content)}")
-    print(f"新内容长度: {len(current_content)}")
+    print(f"📊 旧内容长度: {len(previous_content)} | 新内容长度: {len(current_content)}")
 
-    # 检测内容是否变化
+    # 5. 检测变化并发送通知
     if content_changed(previous_content, current_content):
-        print("[更新检测] 内容发生了变化，准备发送通知...")
-        try:
-            # 发送通知
-            telegram_result = telegram(current_content)
-            print(f"[通知结果] Telegram 发送返回：{telegram_result}")
-        except Exception as e:
-            print(f"[错误] 发送通知失败：{e}")
-        # 保存新内容
-        save_current_content(current_content, save_path)
+        print("🔔 [更新检测] 内容发生了变化，尝试发送 Telegram 通知...")
+        
+        # 调用通知函数并接收返回值
+        telegram_result = telegram(current_content)
+        print(f"📢 [通知结果] Telegram 发送返回：{telegram_result}")
+
+        # 核心逻辑：只有发送成功了，才更新本地记录
+        # 这样如果这次发送失败，下次脚本运行时还会判定为有变化，从而再次尝试发送
+        if telegram_result is True:
+            save_current_content(current_content, save_path)
+        else:
+            print("⚠️ [警告] 由于发送通知失败，本地记录未更新，将在下次运行时重试。")
     else:
-        print("[更新检测] 内容无变化，不再发送通知。")
+        print("😴 [更新检测] 内容无变化，跳过。")
