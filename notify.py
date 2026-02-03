@@ -46,27 +46,34 @@ def pushplus(title, message):
     else:
         print(f"PushPlus 通知发送失败: {response.text}")
 
-# Telegram 通知
 def telegram(message):
-    """
-    使用 Telegram 发送通知
-    :param message: 通知内容
-    """
-    bot_token = os.getenv('TG_BOT_TOKEN')  # 从环境变量获取 Bot Token
-    chat_id = os.getenv('TG_USER_ID')     # 从环境变量获取 Chat ID
+    bot_token = os.getenv('TG_BOT_TOKEN')
+    chat_id = os.getenv('TG_USER_ID')
+    
     if not bot_token or not chat_id:
-        raise ValueError("请设置环境变量 TELEGRAM_BOT_TOKEN 和 TELEGRAM_CHAT_ID")
+        raise ValueError("请设置环境变量 TG_BOT_TOKEN 和 TG_USER_ID")
 
     url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
     data = {
         'chat_id': chat_id,
-        'text': message
+        'text': message,
+        'parse_mode': 'Markdown' # 增加这个可以让消息更好看
     }
-    response = requests.post(url, json=data)
-    if response.status_code == 200:
-        print("Telegram 通知已发送！")
-    else:
-        print(f"Telegram 通知发送失败: {response.text}")
+    
+    try:
+        # 增加 timeout 防止脚本卡死
+        response = requests.post(url, json=data, timeout=10)
+        # 抛出具体的 HTTP 错误
+        response.raise_for_status() 
+        
+        result = response.json()
+        if result.get("ok"):
+            print("Telegram 通知已发送！")
+        else:
+            print(f"发送失败，Telegram 返回错误: {result.get('description')}")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"请求发生异常: {e}")
 
 # Qmsg 通知
 def qmsg(message, qq=None):
