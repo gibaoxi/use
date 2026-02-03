@@ -51,29 +51,29 @@ def telegram(message):
     chat_id = os.getenv('TG_USER_ID')
     
     if not bot_token or not chat_id:
-        raise ValueError("请设置环境变量 TG_BOT_TOKEN 和 TG_USER_ID")
+        print("❌ 错误：环境变量 TG_BOT_TOKEN 或 TG_USER_ID 未设置")
+        return
 
     url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-    data = {
+    payload = {
         'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'Markdown' # 增加这个可以让消息更好看
+        'text': message
     }
-    
+
     try:
-        # 增加 timeout 防止脚本卡死
-        response = requests.post(url, json=data, timeout=10)
-        # 抛出具体的 HTTP 错误
-        response.raise_for_status() 
-        
+        # 设置超时，防止网络不通时死等
+        response = requests.post(url, json=payload, timeout=10)
         result = response.json()
-        if result.get("ok"):
-            print("Telegram 通知已发送！")
+        
+        if response.status_code == 200 and result.get("ok"):
+            print("✅ Telegram 通知已发送！")
         else:
-            print(f"发送失败，Telegram 返回错误: {result.get('description')}")
+            # 这里会打印出 Telegram 官方给出的具体失败原因
+            error_msg = result.get('description', '未知错误')
+            print(f"❌ 发送失败！错误代码: {response.status_code}，原因: {error_msg}")
             
-    except requests.exceptions.RequestException as e:
-        print(f"请求发生异常: {e}")
+    except Exception as e:
+        print(f"🔥 请求发生异常（可能是网络问题）: {e}")
 
 # Qmsg 通知
 def qmsg(message, qq=None):
