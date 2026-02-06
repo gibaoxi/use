@@ -18,6 +18,9 @@ jobs:
         
     - name: Run test
       working-directory: ./daili
+      env:
+        TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+        TG_USER_ID: ${{ secrets.TG_USER_ID }}
       run: |
         pip install requests[socks] urllib3
         cd .. && python daili.py
