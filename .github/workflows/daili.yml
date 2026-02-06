@@ -23,6 +23,7 @@ jobs:
         TG_USER_ID: ${{ secrets.TG_USER_ID }}
       run: |
         pip install requests[socks] urllib3
+        python daili.py
         cd .. && python daili.py
         
     - name: Simple commit
