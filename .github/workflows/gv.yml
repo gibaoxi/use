@@ -34,6 +34,7 @@ jobs:
 
       - name: Run script
         run: |
+          rm secret.json
           mkdir -p results
           python gv.py
 
