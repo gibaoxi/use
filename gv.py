@@ -3,7 +3,6 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import base64
-from secret import url
 
 def fetch_and_save(url):
     temp_file = None
