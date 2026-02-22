@@ -223,7 +223,7 @@ class Socks5ProxyCollectorWithNotify:
 
             await asyncio.sleep(12)  # 等待 bot 生成列表
 
-            messages = await client.get_messages(self.target_bot, limit=10)
+            messages = await client.get_messages(self.target_bot, limit=1)
 
             proxies = []
 
