@@ -5,7 +5,11 @@ import time
 import socket
 from datetime import datetime
 import urllib3
+
+# telethon 相关导入
+from telethon import TelegramClient
 import re
+import asyncio
 
 # 禁用SSL证书验证警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -34,6 +38,13 @@ class Socks5ProxyCollectorWithNotify:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+
+        # telethon 配置
+        self.api_id = 33734616
+        self.api_hash = '326d5c17dccee3d0c0fc51ec4fe3ecad'
+        self.phone = '+8613465607391'
+        self.target_bot = '@mtpro_xyz_bot'
+        self.session_name = 'session_mtpro'  # session 文件名，会生成 session_mtpro.session
 
         # 检查文件是否存在，不存在则创建
         self.init_data_file()
@@ -196,72 +207,60 @@ class Socks5ProxyCollectorWithNotify:
             print(f"❌❌❌❌ 发送Telegram消息失败: {e}")
             return False
 
-    def fetch_proxies(self):
-        """使用 Bot Token 从 @mtpro_xyz_bot 获取代理列表"""
-        if not self.telegram_bot_token:
-            print("❌ 缺少 TG_BOT_TOKEN，无法使用 Bot 获取代理")
-            return []
-
-        target = "@mtpro_xyz_bot"
-        proxies = []
-
+    async def _fetch_proxies_async(self):
+        """异步方法：从 @mtpro_xyz_bot 获取代理"""
+        client = TelegramClient(self.session_name, self.api_id, self.api_hash)
+        
         try:
-            print("使用 Bot Token 向 @mtpro_xyz_bot 发送请求...")
+            await client.start(phone=self.phone)
+            print("Telegram 已登录（或已使用现有 session）")
 
-            # 发送 /start（确保对话存在）
-            requests.get(
-                f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage",
-                params={"chat_id": target, "text": "/start"}
-            )
-            time.sleep(2)
+            await client.send_message(self.target_bot, '/start')
+            await asyncio.sleep(2)
 
-            # 发送 /socks5
-            send_resp = requests.get(
-                f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage",
-                params={"chat_id": target, "text": "/socks5"}
-            ).json()
+            await client.send_message(self.target_bot, '/socks5')
+            print("已发送 /socks5 命令，等待 bot 回复...")
 
-            if not send_resp.get("ok"):
-                print("发送 /socks5 失败:", send_resp)
-                return []
+            await asyncio.sleep(12)  # 等待 bot 生成列表
 
-            print("已发送 /socks5，等待 bot 回复（约15秒）...")
-            time.sleep(15)
+            messages = await client.get_messages(self.target_bot, limit=10)
 
-            # 获取更新
-            updates_resp = requests.get(
-                f"https://api.telegram.org/bot{self.telegram_bot_token}/getUpdates",
-                params={"timeout": 30, "allowed_updates": ["message"]}
-            ).json()
+            proxies = []
 
-            if not updates_resp.get("ok"):
-                print("getUpdates 失败:", updates_resp)
-                return []
+            for msg in messages:
+                if not msg.message:
+                    continue
 
-            for update in updates_resp.get("result", []):
-                msg = update.get("message", {})
-                sender = msg.get("from", {})
-                if sender.get("username") == "mtpro_xyz_bot" and msg.get("text"):
-                    text = msg["text"]
-                    matches = re.findall(
-                        r'([A-Z]{2})\s+(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})',
-                        text
-                    )
-                    for country, ip, port in matches:
-                        proxies.append({
-                            "ip_port": f"{ip}:{port}",
-                            "ping": None,
-                            "ip": ip,
-                            "port": port,
-                            "country": country
-                        })
+                text = msg.message
 
-            print(f"从 Bot Token 方式共获取到 {len(proxies)} 个代理")
+                # 匹配：国家代码 + 空格 + IP:端口
+                matches = re.findall(
+                    r'([A-Z]{2})\s+(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})',
+                    text
+                )
+
+                for country, ip, port in matches:
+                    proxies.append({
+                        "ip_port": f"{ip}:{port}",
+                        "ping": None,
+                        "ip": ip,
+                        "port": port,
+                        "country": country
+                    })
+
+            print(f"从 bot 共获取到 {len(proxies)} 个代理")
             return proxies
 
         except Exception as e:
-            print(f"Bot Token 获取代理失败: {e}")
+            print(f"❌ Telegram 获取失败: {e}")
             return []
+
+        finally:
+            await client.disconnect()
+
+    def fetch_proxies(self):
+        """同步调用异步获取方法"""
+        return asyncio.run(self._fetch_proxies_async())
 
     def process_proxies(self, proxies):
         """处理代理数据"""
