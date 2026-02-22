@@ -41,7 +41,7 @@ class Socks5ProxyCollectorWithNotify:
 
         # telethon 配置
         self.api_id = 33734616
-        self.api_hash = '326d5c17dccee3d0c0fc51ec4fe3eca'
+        self.api_hash = '326d5c17dccee3d0c0fc51ec4fe3ecad'
         self.phone = '+8613465607391'
         self.target_bot = '@mtpro_xyz_bot'
         self.session_name = 'session_mtpro'  # session 文件名，会生成 session_mtpro.session
